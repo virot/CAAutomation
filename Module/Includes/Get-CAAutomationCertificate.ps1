@@ -1,18 +1,21 @@
 Function Get-CAAutomationCertificate {
-  [CmdletBinding(DefaultParameterSetName = 'NoFilter')]
+  [CmdletBinding()]
   Param (
     [Parameter(Mandatory = $False)]
+    [ValidatePattern('.*\\.*')]
     [string]$CALocation = ".\$((Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\CertSvc\Configuration' -Name Active).Active)",
     
     [Parameter(Mandatory = $False)]
-    [Parameter(Mandatory = $True, ParameterSetName = 'CertificateTemplate')]
-    [Parameter(Mandatory = $True, ParameterSetName = 'RequestID+CertificateTemplate')]
     [string]$CertificateTemplate = '',
     
-    [Parameter(Mandatory = $True, ParameterSetName = 'RequestID')]
-    [Parameter(Mandatory = $True, ParameterSetName = 'RequestID+CertificateTemplate')]
+    [Parameter(Mandatory = $False)]
     [string]$RequestID = $Null,
 
+    [Parameter(Mandatory = $False)]
+    [ValidateSet('Request_Processed','Request_Under_submission','Certificate_Issued')]
+    [string]$Disposition = $Null,
+
+    [Parameter(Mandatory = $False)]
     [string[]]$Properties = @('Request ID','Request Disposition')
 
   )
@@ -126,16 +129,22 @@ User Principal Name
     $CAView.SetResultColumnCount($SearchProperties.Count)
     $SearchProperties|ForEach {$CAView.SetResultColumn($ColumnIndex[$_])}
 
-    Switch -regex ($PSCmdlet.ParameterSetName){
-      '.*RequestID.*' {
-        $CAView.SetRestriction(($ColumnIndex['Request ID']),1,0,[int]($RequestID))
+    #Manage Restrictions..
+    if ($PSBoundParameters.ContainsKey('RequestID')) {
+      $CAView.SetRestriction(($ColumnIndex['Request ID']),1,0,[int]($RequestID))
+    }
+    if ($PSBoundParameters.ContainsKey('Disposition')) {
+      switch ($Disposition) {
+        'Request_Processed' {$CAView.SetRestriction(($ColumnIndex['Request Disposition']),1,0,[int](8))}
+        'Request_Under_submission' {$CAView.SetRestriction(($ColumnIndex['Request Disposition']),1,0,[int](9))}
+        'Certificate_Issued' {$CAView.SetRestriction(($ColumnIndex['Request Disposition']),1,0,[int](20))}
       }
-      '.*CertificateTemplate.*' {
-        if ($CertificateTemplate -match '^[0-9.]*$') {
-          $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplate))
-        }  elseif ($CertificateTemplates.ContainsKey($CertificateTemplate)) {
-          $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplates[$CertificateTemplate]))
-        }
+    }
+    if ($PSBoundParameters.ContainsKey('CertificateTemplate')) {
+     if ($CertificateTemplate -match '^[0-9.]*$') {
+        $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplate))
+      }  elseif ($CertificateTemplates.ContainsKey($CertificateTemplate)) {
+        $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplates[$CertificateTemplate]))
       }
     }
 

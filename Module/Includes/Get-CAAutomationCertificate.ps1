@@ -1,5 +1,5 @@
 Function Get-CAAutomationCertificate {
-  [CmdletBinding()]
+  [CmdletBinding(DefaultParameterSetName = 'NoFilter')]
   Param (
     [Parameter(Mandatory = $False)]
     [string]$CALocation = ".\$((Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\CertSvc\Configuration' -Name Active).Active)",
@@ -13,7 +13,7 @@ Function Get-CAAutomationCertificate {
     [Parameter(Mandatory = $True, ParameterSetName = 'RequestID+CertificateTemplate')]
     [string]$RequestID = $Null,
 
-    [string[]]$Properties = @('Request ID','Certificate Template','Request Disposition','Issued Common Name')
+    [string[]]$Properties = @('Request ID','Request Disposition')
 
   )
   Begin {
@@ -118,11 +118,25 @@ User Principal Name
     $ColumnNames|ForEach {$ColumnIndex[$_] = $CaView.GetColumnIndex($false, $_)}
     #$CAView.SetResultColumnCount($ColumIndex.Count)
     #$ColumnIndex.Values|ForEach {$CAView.SetResultColumn($_)}
-    $CAView.SetResultColumnCount($Properties.Count)
-    $Properties|ForEach {$CAView.SetResultColumn($ColumnIndex[$_])}
+    if ($Properties.Contains('Certificate Template Name') -or $Properties.Contains('Certificate Template OID') -and -not $Properties.Contains('Certificate Template')) {
+      $SearchProperties = $Properties + 'Certificate Template'
+    } else {
+      $SearchProperties = $Properties
+    }
+    $CAView.SetResultColumnCount($SearchProperties.Count)
+    $SearchProperties|ForEach {$CAView.SetResultColumn($ColumnIndex[$_])}
 
-    Switch ($PSCmdlet.ParameterSetName){
-      'RequestID' {$CAView.SetRestriction(($ColumnIndex['Request ID']),1,0,[int]($RequestID)) }
+    Switch -regex ($PSCmdlet.ParameterSetName){
+      '.*RequestID.*' {
+        $CAView.SetRestriction(($ColumnIndex['Request ID']),1,0,[int]($RequestID))
+      }
+      '.*CertificateTemplate.*' {
+        if ($CertificateTemplate -match '^[0-9.]*$') {
+          $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplate))
+        }  elseif ($CertificateTemplates.ContainsKey($CertificateTemplate)) {
+          $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplates[$CertificateTemplate]))
+        }
+      }
     }
 
     #Do the search
@@ -138,13 +152,32 @@ User Principal Name
     While ($CASearchRow.Next() -ne -1) {
       $RowColumn = $CASearchRow.EnumCertViewColumn()
       $Certificate = [psobject]::new()
-      While ($RowColumn.Next() -ne -1){
+      While ($RowColumn.Next() -ne -1) {
         Add-Member -InputObject $Certificate -MemberType NoteProperty -Name $($RowColumn.GetDisplayName()) -Value $($RowColumn.GetValue(1)) -Force
+      }
+      if ($Properties.contains('Certificate Template Name'))
+      {
+        if ($Certificate.'Certificate Template' -ne $Null -and $Certificate.'Certificate Template' -match '^[0-9.]*$' -and $CertificateTemplates.Contains($Certificate.'Certificate Template')) {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template Name' -Value $CertificateTemplates[$Certificate.'Certificate Template'] -Force
+        } elseif ($Certificate.'Certificate Template' -ne $Null) {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template Name' -Value $Certificate.'Certificate Template' -Force
+        } else {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template Name' -Value 'Unknown' -Force
+        }
+      }
+      if ($Properties.contains('Certificate Template OID'))
+      {
+        if ($Certificate.'Certificate Template' -ne $Null -and $Certificate.'Certificate Template' -notmatch '^[0-9.]*$' -and $CertificateTemplates.Contains($Certificate.'Certificate Template')) {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template OID' -Value $CertificateTemplates[$Certificate.'Certificate Template'] -Force
+        } elseif ($Certificate.'Certificate Template' -ne $Null) {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template OID' -Value $Certificate.'Certificate Template' -Force
+        } else {
+          Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template OID' -Value 'Unknown' -Force
+        }
       }
       Add-Member -InputObject $Certificate -MemberType MemberSet -Name PSStandardMembers $PSStandardMembers
       $ReturnObject += $Certificate
     }
-
     return $ReturnObject
   }
 }

@@ -152,8 +152,8 @@ User Principal Name
     $CASearchRow= $CAView.OpenView()
 
     #$defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]($Properties|Select -First 4))
-    #$defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]@('Request ID','Request Common Name'))
-    $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet(‘DefaultDisplayPropertySet’,[string[]]($Properties|Select -First 4))
+    $defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]($Properties|Select -First 4))
+    $defaultDisplayPropertySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',([string[]]$defaultDisplaySet))
     $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
 
     $ReturnObject = @()

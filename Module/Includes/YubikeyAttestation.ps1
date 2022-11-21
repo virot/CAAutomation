@@ -30,8 +30,10 @@ class YubikeyAttestation
         }
       }
     }
-    $this.ValidateAttestation()
-    $this.GetExtensions()
+    if ($this.IntermediateCertificate -ne $Null -and $this.AttestationCertificate -ne $Null) {
+      $this.ValidateAttestation()
+      $this.GetExtensions()
+    }
   } # END Constructor
 
   [void]hidden CreateYubicoPIVAttestationCA(

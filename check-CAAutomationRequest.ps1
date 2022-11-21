@@ -7,6 +7,7 @@
     $scriptpath = (split-path $MyInvocation.MyCommand.Path)
     . $scriptpath\includes\Get-CAAutomationCertificate.ps1
     . $scriptpath\includes\YubikeyAttestation.ps1
+    . $scriptpath\includes\Grant-CAAutomationRequest.ps1
   }
   Process {
 Set-Content -path C:\temp\cert.txt -Value $RequestID
@@ -48,10 +49,10 @@ Set-Content -path C:\temp\cert.txt -Value $RequestID
     
     if ($user.Properties['altsecurityidentities'] -eq $Null -or $user.Properties['altsecurityidentities'].count -eq 0) #If altsecurityidentities is empty, just allow
     {
-      #Grant-CAAutomationRequest -RequestID $RequestID
+      Grant-CAAutomationRequest -RequestID $RequestID
       return 0
     } elseif ([datetime]::fromfiletime($user.Properties['pwdlastset'][0]) -gt [datetime]::Now.AddMinutes(-15)) { #If there are things in altsecurityidentities, only allow new pwd was just reset (15 min)
-      #Grant-CAAutomationRequest -RequestID $RequestID
+      Grant-CAAutomationRequest -RequestID $RequestID
       return 0
     } else { #Time to check if the old altsecurityidentities was signed by the same yubikey
       Write-Debug 'Checking if old altsecurityidentities for same serial'
@@ -62,7 +63,7 @@ Set-Content -path C:\temp\cert.txt -Value $RequestID
       }
       Write-Debug "Found $($ApprovedSerials.count) attestated serials in CA DB"
       if ($YubikeyAttestation.serial -in $ApprovedSerials) {
-        #Grant-CAAutomationRequest -RequestID $RequestID
+        Grant-CAAutomationRequest -RequestID $RequestID
         return 0
       }
     }

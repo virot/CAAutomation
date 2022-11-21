@@ -1,6 +1,6 @@
 class YubikeyAttestation
 {
-  [ValidateNotNullOrEmpty()][string]$Version
+  [ValidateNotNullOrEmpty()][System.Management.Automation.SemanticVersion]$Version
   [ValidateNotNullOrEmpty()][string]$Serial
   [ValidateNotNullOrEmpty()][string]$Slot
   [ValidateNotNullOrEmpty()][String]$Touchpolicy
@@ -12,33 +12,7 @@ class YubikeyAttestation
   hidden [System.Security.Cryptography.X509Certificates.X509Certificate2] $AttestationCertificate
   hidden [System.Security.Cryptography.X509Certificates.X509Certificate2] $IntermediateCertificate
   hidden [System.Security.Cryptography.X509Certificates.CertificateRequest] $CertificateRequest
-  hidden [System.Security.Cryptography.X509Certificates.X509Certificate2] $YubicoPIVAttestationCA
- 
-
-  YubikeyAttestation(
-    [String] $CertificateSigningRequest
-  ) {
-    $this.CreateYubicoPIVAttestationCA()
-    $this.CertificateRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::LoadSigningRequestPEM("-----BEGIN CERTIFICATE REQUEST-----$($CertificateSigningRequest)-----END CERTIFICATE REQUEST-----",'SHA-1',[System.Security.Cryptography.X509Certificates.CertificateRequestLoadOptions]::UnsafeLoadCertificateExtensions)
-    ForEach ($Extension in $this.CertificateRequest.CertificateExtensions){
-      Switch ($Extension.OID.Value){
-        '1.3.6.1.4.1.41482.3.2' {
-          $this.IntermediateCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Extension.RawData)
-        }
-        '1.3.6.1.4.1.41482.3.11' {
-          $this.AttestationCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Extension.RawData)
-        }
-      }
-    }
-    if ($this.IntermediateCertificate -ne $Null -and $this.AttestationCertificate -ne $Null) {
-      $this.ValidateAttestation()
-      $this.GetExtensions()
-    }
-  } # END Constructor
-
-  [void]hidden CreateYubicoPIVAttestationCA(
-  ) {
-    $YubicoPIVAttestationCAPEM = @'
+  hidden [System.Security.Cryptography.X509Certificates.X509Certificate2] $YubicoPIVAttestationCA = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new([System.Convert]::FromBase64String(@'
 MIIDFzCCAf+gAwIBAgIDBAZHMA0GCSqGSIb3DQEBCwUAMCsxKTAnBgNVBAMMIFl1
 YmljbyBQSVYgUm9vdCBDQSBTZXJpYWwgMjYzNzUxMCAXDTE2MDMxNDAwMDAwMFoY
 DzIwNTIwNDE3MDAwMDAwWjArMSkwJwYDVQQDDCBZdWJpY28gUElWIFJvb3QgQ0Eg
@@ -56,16 +30,40 @@ lLKuym9KYdYLDgnj3BeAvzIhVzzYSeU77/Cupofj093OuAswW0jYvXsGTyix6B3d
 bW5yWvyS9zNXaqGaUmP3U9/b6DlHdDogMLu3VLpBB9bm5bjaKWWJYgWltCVgUbFq
 Fqyi4+JE014cSgR57Jcu3dZiehB6UtAPgad9L5cNvua/IWRmm+ANy3O2LH++Pyl8
 SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
-'@
-    $this.YubicoPIVAttestationCA = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new([System.Convert]::FromBase64String($YubicoPIVAttestationCAPEM))
-  }
+'@))
+ 
+
+  YubikeyAttestation(
+    [String] $CertificateSigningRequest
+  ) {
+    Try {
+      $this.CertificateRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::LoadSigningRequestPEM("-----BEGIN CERTIFICATE REQUEST-----$($CertificateSigningRequest)-----END CERTIFICATE REQUEST-----",'SHA-1',[System.Security.Cryptography.X509Certificates.CertificateRequestLoadOptions]::UnsafeLoadCertificateExtensions)
+    }
+    Catch {
+      Throw 'Failed to load CSR'
+    }
+    ForEach ($Extension in $this.CertificateRequest.CertificateExtensions){
+      Switch ($Extension.OID.Value){
+        '1.3.6.1.4.1.41482.3.2' {
+          $this.IntermediateCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Extension.RawData)
+        }
+        '1.3.6.1.4.1.41482.3.11' {
+          $this.AttestationCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Extension.RawData)
+        }
+      }
+    }
+    if ($this.IntermediateCertificate -ne $Null -and $this.AttestationCertificate -ne $Null) {
+      $this.ValidateAttestation()
+      $this.GetExtensions()
+    }
+  } # END Constructor
 
   [void]hidden GetExtensions(
   ){
     ForEach ($Extension in $this.AttestationCertificate.Extensions) {
       switch ($Extension.Oid.Value) {
         '1.3.6.1.4.1.41482.3.3' {
-          $this.Version = [string]::Format("{0}.{1}.{2} ", $Extension.RawData[0], $Extension.RawData[1], $Extension.RawData[2])
+          $this.Version = [System.Management.Automation.SemanticVersion]::new($Extension.RawData[0],$Extension.RawData[1],$Extension.RawData[2])
          } # 1.3.6.1.4.1.41482.3.3: Firmware version, encoded as 3 bytes, like: 040300 for 4.3.0
         '1.3.6.1.4.1.41482.3.7' {
           $tmpversion = $Extension.RawData[2..5]
@@ -88,7 +86,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
   ){
     $chain = [System.Security.Cryptography.X509Certificates.X509Chain]::new()
     $chain.ChainPolicy.TrustMode = [System.Security.Cryptography.X509Certificates.X509ChainTrustMode]::CustomRootTrust
-    
     [void]$chain.ChainPolicy.CustomTrustStore.add($this.YubicoPIVAttestationCA)
     [void]$chain.ChainPolicy.ExtraStore.Add($this.IntermediateCertificate)
     

@@ -20,9 +20,13 @@ Function Get-CAAutomationCertificate {
 
   )
   Begin {
-    #ZZZ To be replaced with ADSI query to speed up, or atleast be moved to module level to save AD queries
+    #Store all OID and DisplaNames for Certificate Templates in a cache
     $CertificateTemplates = @{}
-    Get-ADObject -SearchBase (Get-ADRootDSE).ConfigurationNamingContext -filter {objectclass -eq "pKICertificateTemplate"} -Properties "DisplayName", "msPKI-Cert-Template-OID" | ForEach{$CertificateTemplates.Add($_.'msPKI-Cert-Template-OID',$_.'DisplayName');$CertificateTemplates.Add($_.'DisplayName',$_.'msPKI-Cert-Template-OID') }
+    $SearchRoot = [System.DirectoryServices.DirectoryEntry]::new("LDAP://$([System.DirectoryServices.DirectoryEntry]::new('LDAP://RootDSE').configurationNamingContext)")
+    ForEach ($template in ([System.DirectoryServices.DirectorySearcher]::new($SearchRoot, '(objectclass=pKICertificateTemplate)', @('DisplayName','msPKI-Cert-Template-OID')).FindAll() | Select-Object -ExpandProperty Properties)) {
+      $CertificateTemplates.Add($template['msPKI-Cert-Template-OID'],$template['DisplayName'])
+      $CertificateTemplates.Add($template['DisplayName'],$template['msPKI-Cert-Template-OID'])
+    }
     $ColumnNames = @'
 Archived Key
 Attestation Challenge
@@ -151,10 +155,10 @@ User Principal Name
     #Do the search
     $CASearchRow= $CAView.OpenView()
 
+    ##$defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]($Properties|Select -First 4))
     #$defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]($Properties|Select -First 4))
-    $defaultDisplaySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',[string[]]($Properties|Select -First 4))
-    $defaultDisplayPropertySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',([string[]]$defaultDisplaySet))
-    $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
+    #$defaultDisplayPropertySet = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet',([string[]]$defaultDisplaySet))
+    #$PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
 
     $ReturnObject = @()
 
@@ -184,7 +188,7 @@ User Principal Name
           Add-Member -InputObject $Certificate -MemberType NoteProperty -Name 'Certificate Template OID' -Value 'Unknown' -Force
         }
       }
-      Add-Member -InputObject $Certificate -MemberType MemberSet -Name PSStandardMembers $PSStandardMembers
+      #Add-Member -InputObject $Certificate -MemberType MemberSet -Name PSStandardMembers $PSStandardMembers
       $ReturnObject += $Certificate
     }
     return $ReturnObject

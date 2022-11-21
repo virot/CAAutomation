@@ -78,7 +78,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
           $this.formfactor = @{1='USB-A Keychain';2='USB-A Nano';3='USB-C Keychain';4='USB-C Nano';5='Lightning and USB-C';81='USB-A Keychain (FIPS)';82='USB-A Nano (FIPS)';83='USB-C Keychain (FIPS)';84='USB-C Nano (FIPS)';85='Lightning and USB-C (FIPS)'}[[int]$Extension.RawData[0]] ?? 'Something failed'
         } #END # 1.3.6.1.4.1.41482.3.9 Formfactor, encoded as one byte
       } 
-    }
+    } # END ForEach
+    $this.slot = $this.attestationcertificate.subject -replace '.*([0-9a-z]{2})$','$1' ?? 'Something failed'
   }
 
   [void]hidden ValidateAttestation(

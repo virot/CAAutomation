@@ -1,12 +1,29 @@
   [CmdletBinding()]
   Param (
-    [Parameter(Mandatory = $False)]
+    [Parameter(Mandatory = $True)]
     [int]$RequestID
   )
+  Begin {
+    $scriptpath = (split-path $MyInvocation.MyCommand.Path)
+    . $scriptpath\includes\Get-CAAutomationCertificate.ps1
+    . $scriptpath\includes\YubikeyAttestation.ps1
+  }
   Process {
-    $CertificateRequest = Get-CAAutomationCertificate -RequestID $RequestID -Properties 'Request ID','Binary Request','Requester Name'
-    $YubikeyAttestation = [YubikeyAttestation]::new($CertificateRequest.'Binary Request')
-
+Set-Content -path C:\temp\cert.txt -Value $RequestID
+    Write-Debug "Starting Check-CAAutomationRequest for RequestID $RequestID"
+    $CertificateRequest = Get-CAAutomationCertificate -RequestID $RequestID -Properties 'Request ID','Binary Request','Requester Name' -Disposition:'Request_Under_submission'
+    if ($CertificateRequest.Count -ne 1)
+    {
+      return 3
+    }
+    Write-Debug "Retrivied CSR with ID ${$CertificateRequest.'Request ID'}"
+    Write-Debug "Checking for Yubikey Attestation"
+    Try {
+      $YubikeyAttestation = [YubikeyAttestation]::new($CertificateRequest.'Binary Request')
+    }
+    Catch {
+      Write-Error "Failed to load Yubikey attestation"
+    }
     #Start with verifying that the request fullfils basic requirements
 
     if (-not ($YubikeyAttestation.Touchpolicy -in @('Always','Cached'))) {

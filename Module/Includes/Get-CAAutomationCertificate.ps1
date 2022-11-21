@@ -12,6 +12,9 @@ Function Get-CAAutomationCertificate {
     [string]$RequestID = $Null,
 
     [Parameter(Mandatory = $False)]
+    [string]$Thumbprint = $Null,
+
+    [Parameter(Mandatory = $False)]
     [ValidateSet('Request_Processed','Request_Under_submission','Certificate_Issued')]
     [string]$Disposition = $Null,
 
@@ -136,6 +139,9 @@ User Principal Name
     #Manage Restrictions..
     if ($PSBoundParameters.ContainsKey('RequestID')) {
       $CAView.SetRestriction(($ColumnIndex['Request ID']),1,0,[int]($RequestID))
+    }
+    if ($PSBoundParameters.ContainsKey('Thumbprint')) {
+      $CAView.SetRestriction(($ColumnIndex['Certificate Hash']),1,0,[string]($Thumbprint))
     }
     if ($PSBoundParameters.ContainsKey('Disposition')) {
       switch ($Disposition) {

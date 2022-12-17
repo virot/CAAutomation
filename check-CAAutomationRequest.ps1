@@ -58,8 +58,13 @@ Set-Content -path C:\temp\cert.txt -Value $RequestID
       Write-Debug 'Checking if old altsecurityidentities for same serial'
       $thumbrprintsInAD = $User.Properties['altsecurityidentities']|Where-Object {$_ -like 'X509:<SHA1-PUKEY>*'}|ForEach {$_ -replace 'X509:<SHA1-PUKEY>'}
       Write-Debug "Found $($thumbrprintsInAD.count) thumbprints in AD"
-      $ApprovedSerials = ForEach ($thumb in $thumbrprintsInAD) {
-        [YubikeyAttestation]::new((Get-CAAutomationCertificate -Thumbprint $thumb -Properties 'Request ID','Binary Request').'Binary Request')|Select-Object -ExpandProperty Serial
+            Try {
+        $ApprovedSerials = ForEach ($thumb in $thumbrprintsInAD) {
+          $OldAttest = [YubikeyAttestation]::new((Get-CAAutomationCertificate -Thumbprint $thumb -Properties 'Request ID','Binary Request').'Binary Request')
+          $oldAttest |Select-Object -ExpandProperty Serial
+        }
+      }
+      Catch {
       }
       Write-Debug "Found $($ApprovedSerials.count) attestated serials in CA DB"
       if ($YubikeyAttestation.serial -in $ApprovedSerials) {

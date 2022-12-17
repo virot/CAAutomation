@@ -3,7 +3,7 @@ Function Get-CAAutomationCertificate {
   Param (
     [Parameter(Mandatory = $False)]
     [ValidatePattern('.*\\.*')]
-    [string]$CALocation = ".\$((Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\CertSvc\Configuration' -Name Active).Active)",
+    [string]$CALocation = ".\$(Try{(Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\CertSvc\Configuration' -Name Active -ErrorAction Stop).Active}Catch{''})",
     
     [Parameter(Mandatory = $False)]
     [string]$CertificateTemplate = '',
@@ -27,8 +27,8 @@ Function Get-CAAutomationCertificate {
     $CertificateTemplates = @{}
     $SearchRoot = [System.DirectoryServices.DirectoryEntry]::new("LDAP://$([System.DirectoryServices.DirectoryEntry]::new('LDAP://RootDSE').configurationNamingContext)")
     ForEach ($template in ([System.DirectoryServices.DirectorySearcher]::new($SearchRoot, '(objectclass=pKICertificateTemplate)', @('DisplayName','msPKI-Cert-Template-OID')).FindAll() | Select-Object -ExpandProperty Properties)) {
-      $CertificateTemplates.Add($template['msPKI-Cert-Template-OID'],$template['DisplayName'])
-      $CertificateTemplates.Add($template['DisplayName'],$template['msPKI-Cert-Template-OID'])
+      $CertificateTemplates.Add($template['msPKI-Cert-Template-OID'][0],$template['DisplayName'][0])
+      $CertificateTemplates.Add($template['DisplayName'][0],$template['msPKI-Cert-Template-OID'][0])
     }
     $ColumnNames = @'
 Archived Key
@@ -108,7 +108,7 @@ Signer Policies
 Template Enrollment Flags
 Template General Flags
 User Principal Name
-'@ -split [System.Environment]::NewLine
+'@ -split "`n" -replace '[^A-Za-z ]'
 
   }
   Process {
@@ -125,7 +125,7 @@ User Principal Name
     # Hashtable to store Index number and which columns to retrive
     $ColumnIndex = @{}
     #@('Request ID', 'Request Disposition', 'Requester Name', 'Certificate Template', 'Binary Certificate', 'Binary Request')|ForEach {$ColumnIndex[$_] = $CaView.GetColumnIndex($false, $_)}
-    $ColumnNames|ForEach {$ColumnIndex[$_] = $CaView.GetColumnIndex($false, $_)}
+    $ColumnNames|ForEach {Try{$ColumnIndex[$_] = $CaView.GetColumnIndex($false, $_)}Catch{}}
     #$CAView.SetResultColumnCount($ColumIndex.Count)
     #$ColumnIndex.Values|ForEach {$CAView.SetResultColumn($_)}
     if ($Properties.Contains('Certificate Template Name') -or $Properties.Contains('Certificate Template OID') -and -not $Properties.Contains('Certificate Template')) {
@@ -155,6 +155,8 @@ User Principal Name
         $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplate))
       }  elseif ($CertificateTemplates.ContainsKey($CertificateTemplate)) {
         $CAView.SetRestriction(($ColumnIndex['Certificate Template']),1,0,[string]($CertificateTemplates[$CertificateTemplate]))
+      } else {
+        Throw ("Unknown templatename `"$($CertificateTemplate)`"")
       }
     }
 

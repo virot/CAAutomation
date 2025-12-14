@@ -1,14 +1,6 @@
 # CAAutomation
 
-## Setup
-
-### Copy files
-
-### Enable logging
-
-### Create Event viewer source
-
-### Setup Task Scheduler
+Dont use this, checkout [TameMyCerts](https://github.com/Sleepw4lker/TameMyCerts/)
 
 ## 
 This is a rewrite/upgrade from the solution by Torbjörn Lofterud.
